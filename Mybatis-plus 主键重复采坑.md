@@ -119,7 +119,7 @@ id = ((0x000000FF & (long) mac[mac.length - 1]) | (0x0000FF00 & (((long) mac[mac
 (0x000000FF & (long) mac[mac.length - 1]) | (0x00000300 & (((long) mac[mac.length - 2]) << 8)) ;
 ```
 
-就可以保证在22位掩码的子网中，所有节点不冲突，这基本就可以满足实际使用。
+就可以保证在**22位掩码的子网中**，所有节点不冲突（注意：C类网络，主机标识的长度为8位，掩码24位；B类网络，主机地址16位，掩码16位）。
 
 
 例： 172.20.1.1/22 ，ip 范围： 172.20.1.1- 172.20.3.254 共1022个节点。
@@ -127,7 +127,7 @@ id = ((0x000000FF & (long) mac[mac.length - 1]) | (0x0000FF00 & (((long) mac[mac
 
 ## 临时的方案
 
-将datacenterId 的实现拷贝出来，修改关键代码，取后10位，分成两部分作为 workerId 和 datacenterId 传入：
+子网掩码不小于22的局域网，直接取mac地址后10位即可，将datacenterId 的实现拷贝出来，修改关键代码，取后10位，分成两部分作为 workerId 和 datacenterId 传入：
 
 ```java
   @PostConstruct
@@ -150,9 +150,12 @@ id = ((0x000000FF & (long) mac[mac.length - 1]) | (0x0000FF00 & (((long) mac[mac
     }
     final long workerId = id & 0x1f;
     final long datacenterId = (id >> 5) & 0x1f;
-    log.info("workId: {}, datacenterId: {}", workerId, datacenterId);
+    log.info("workerId: {}, datacenterId: {}", workerId, datacenterId);
     IdWorker.initSequence(workerId, datacenterId);
   }
 
 ```
 
+子网掩码大于22的局域网，比如在 B类网络中，你的应用可能分配任何ip的话，有 2^16-2中可能，就不是10位机器码能够自然标识的了，不依赖任何配置信息和数据记录的情况下，总有可能生成一样的机器码。
+
+其实作为通用实现来说，机器码10位有点少，时间戳41位太长（数据保存69年，开啥玩笑呢），序列号12位太长（1毫秒支持产生4095个自增序列id，这并发针对 twitter的峰值设计，对于大多数应用来说太浪费了）。
